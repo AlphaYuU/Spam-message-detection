@@ -1,3 +1,6 @@
 # Data
 Dataset source/
+.hf_models/
+.jupyter_runtime/
+.ipynb_checkpoints/
 
