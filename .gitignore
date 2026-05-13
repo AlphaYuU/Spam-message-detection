@@ -3,4 +3,5 @@ Dataset source/
 .hf_models/
 .jupyter_runtime/
 .ipynb_checkpoints/
+hf_sms_finetuning_checkpoints/
 
