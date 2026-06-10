@@ -4,4 +4,17 @@ Dataset source/
 .jupyter_runtime/
 .ipynb_checkpoints/
 hf_sms_finetuning_checkpoints/
+Models/transformer_spam_classifier/model.safetensors
+.vscode/
+__pycache__/
+*.py[cod]
 
+
+# Lemon Rule private workspace
+.ai/private/*
+!.ai/private/
+!.ai/private/.gitkeep
+.ai/backups/
+.env
+.env.*
+!.env.example
