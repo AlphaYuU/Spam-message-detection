@@ -1,20 +1,60 @@
-# Data
+# Project data and generated datasets
 Dataset source/
+document/
+
+# Hugging Face and training outputs
+.cache/
 .hf_models/
+.hf_runs/
+hf_sms_finetuning_checkpoints/
+
+# UI transformer model artifacts copied from fine-tuning outputs
+Models/transformer_spam_classifier/
+Models/multilingual_transformer_spam_classifier/
+Models/*.backup_*.joblib
+Models/**/checkpoint-*/
+Models/**/*.safetensors
+Models/**/*.bin
+Models/**/*.onnx
+
+# Jupyter and IPython runtime files
 .jupyter_runtime/
 .ipynb_checkpoints/
-hf_sms_finetuning_checkpoints/
-Models/transformer_spam_classifier/model.safetensors
-.vscode/
+.ipython/
+*.nbconvert.ipynb
+
+# Python caches and virtual environments
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
 
+# Editor, OS, and local-only files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local configuration and private agent files
+AGENTS.md
+AI_AGENT_PROMPTS.md
+.env
+.env.*
+!.env.example
 
 # Lemon Rule private workspace
+.ai/
 .ai/private/*
 !.ai/private/
 !.ai/private/.gitkeep
 .ai/backups/
-.env
-.env.*
-!.env.example

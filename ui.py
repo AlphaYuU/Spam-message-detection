@@ -12,13 +12,19 @@ from transformer_spam_model import predict_transformer_spam
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 TRANSFORMER_MODEL_NAME = "XLM-RoBERTa"
+MULTILINGUAL_TRANSFORMER_MODEL_NAME = "Multi-language"
 STATUS_LABEL_WIDTH = 86
 STATUS_WRAP_LENGTH = 680
 DETAIL_LABEL_WIDTH = 64
 CONFIDENCE_CANVAS_SIZE = 120
 CONFIDENCE_RING_WIDTH = 18
+TRANSFORMER_MAX_LENGTHS = {
+    TRANSFORMER_MODEL_NAME: 128,
+    MULTILINGUAL_TRANSFORMER_MODEL_NAME: 192,
+}
 MODEL_OPTIONS = {
     TRANSFORMER_MODEL_NAME: PROJECT_ROOT / "Models" / "transformer_spam_classifier",
+    MULTILINGUAL_TRANSFORMER_MODEL_NAME: PROJECT_ROOT / "Models" / "multilingual_transformer_spam_classifier",
     "Support Vector Machine": PROJECT_ROOT / "Models" / "svm_spam_classifier.joblib",
     "Logistic Regression": PROJECT_ROOT / "Models" / "logistic_regression_spam_classifier.joblib",
 }
@@ -27,6 +33,11 @@ MODEL_METRICS = {
         "accuracy": 0.988361,
         "precision": 0.975410,
         "recall": 0.929688,
+    },
+    MULTILINGUAL_TRANSFORMER_MODEL_NAME: {
+        "accuracy": 0.993324,
+        "precision": 0.963087,
+        "recall": 0.972881,
     },
     "Support Vector Machine": {
         "accuracy": 0.984481,
@@ -242,8 +253,12 @@ class SpamDetectorApp:
             if not model_path.exists():
                 raise FileNotFoundError(f"Model file not found: {model_path}")
 
-            if selected_model == TRANSFORMER_MODEL_NAME:
-                transformer_prediction = predict_transformer_spam(model_path, message)
+            if selected_model in TRANSFORMER_MAX_LENGTHS:
+                transformer_prediction = predict_transformer_spam(
+                    model_path,
+                    message,
+                    max_length=TRANSFORMER_MAX_LENGTHS[selected_model],
+                )
                 self.root.after(
                     0,
                     self.show_result,

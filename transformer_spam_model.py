@@ -22,7 +22,7 @@ class MissingTransformerDependencies(RuntimeError):
     pass
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_transformer_components(model_dir_text):
     try:
         import torch
