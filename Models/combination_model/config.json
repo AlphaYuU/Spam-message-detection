@@ -1,0 +1,107 @@
+{
+  "name": "Combination Model",
+  "description": "Weighted soft-voting ensemble over SVM, Logistic Regression, and English XLM-RoBERTa.",
+  "weights": {
+    "svm": 0.35000000000000003,
+    "logistic_regression": 0.15000000000000002,
+    "xlm_roberta": 0.4999999999999999
+  },
+  "threshold": 0.20000000000000007,
+  "objective": "validation_macro_f1_with_balanced_xlm_primary_constraint",
+  "constraints": {
+    "min_xlm_roberta_weight": 0.45,
+    "max_xlm_roberta_weight": 0.6,
+    "min_classical_model_weight": 0.1,
+    "xlm_roberta_must_be_largest_weight": true
+  },
+  "max_length": 160,
+  "label2id": {
+    "ham": 0,
+    "spam": 1
+  },
+  "id2label": {
+    "0": "ham",
+    "1": "spam"
+  },
+  "models": {
+    "svm": "Models\\svm_spam_classifier.joblib",
+    "logistic_regression": "Models\\logistic_regression_spam_classifier.joblib",
+    "xlm_roberta": "Models\\transformer_spam_classifier"
+  },
+  "splits": {
+    "source_dataset": "Dataset source\\training\\Dataset_SMS_clean.csv",
+    "holdout_size": 0.2,
+    "validation_size_from_holdout": 0.5,
+    "random_state": 42,
+    "validation_rows": 515,
+    "test_rows": 516,
+    "validation_spam_rows": 64,
+    "test_spam_rows": 64
+  },
+  "metrics": {
+    "svm": {
+      "validation": {
+        "accuracy": 0.9825242718446602,
+        "macro_f1": 0.9572452471658257,
+        "spam_precision": 1.0,
+        "spam_recall": 0.859375,
+        "spam_f1": 0.9243697478991597
+      },
+      "test": {
+        "accuracy": 0.9864341085271318,
+        "macro_f1": 0.968141124586549,
+        "spam_precision": 0.9672131147540983,
+        "spam_recall": 0.921875,
+        "spam_f1": 0.944
+      }
+    },
+    "logistic_regression": {
+      "validation": {
+        "accuracy": 0.9572815533980582,
+        "macro_f1": 0.886217562464851,
+        "spam_precision": 0.9772727272727273,
+        "spam_recall": 0.671875,
+        "spam_f1": 0.7962962962962963
+      },
+      "test": {
+        "accuracy": 0.9728682170542635,
+        "macro_f1": 0.9320132510164132,
+        "spam_precision": 0.9807692307692307,
+        "spam_recall": 0.796875,
+        "spam_f1": 0.8793103448275862
+      }
+    },
+    "xlm_roberta": {
+      "validation": {
+        "accuracy": 0.9844660194174757,
+        "macro_f1": 0.9633269244463434,
+        "spam_precision": 0.9666666666666667,
+        "spam_recall": 0.90625,
+        "spam_f1": 0.9354838709677419
+      },
+      "test": {
+        "accuracy": 0.9922480620155039,
+        "macro_f1": 0.9819194786082204,
+        "spam_precision": 0.9838709677419355,
+        "spam_recall": 0.953125,
+        "spam_f1": 0.9682539682539683
+      }
+    },
+    "combination_model": {
+      "validation": {
+        "accuracy": 0.9941747572815534,
+        "macro_f1": 0.9868810977421902,
+        "spam_precision": 0.9552238805970149,
+        "spam_recall": 1.0,
+        "spam_f1": 0.9770992366412213
+      },
+      "test": {
+        "accuracy": 0.9864341085271318,
+        "macro_f1": 0.9689922480620154,
+        "spam_precision": 0.9384615384615385,
+        "spam_recall": 0.953125,
+        "spam_f1": 0.9457364341085271
+      }
+    }
+  }
+}

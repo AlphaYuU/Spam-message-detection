@@ -1,11 +1,13 @@
 import threading
 import tkinter as tk
+import json
 import math
 from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 
 import joblib
 
+from combination_spam_model import predict_combination_spam
 from spam_feature_explainer import explain_linear_tfidf_model
 from transformer_spam_model import predict_transformer_spam
 
@@ -13,18 +15,28 @@ from transformer_spam_model import predict_transformer_spam
 PROJECT_ROOT = Path(__file__).resolve().parent
 TRANSFORMER_MODEL_NAME = "XLM-RoBERTa"
 MULTILINGUAL_TRANSFORMER_MODEL_NAME = "Multi-language"
+COMBINATION_MODEL_NAME = "Combination Model"
 STATUS_LABEL_WIDTH = 86
 STATUS_WRAP_LENGTH = 680
 DETAIL_LABEL_WIDTH = 64
 CONFIDENCE_CANVAS_SIZE = 120
 CONFIDENCE_RING_WIDTH = 18
+SUMMARY_MIN_WIDTH = 235
+COMBINATION_CANVAS_SIZE = 86
+COMBINATION_RING_WIDTH = 13
 TRANSFORMER_MAX_LENGTHS = {
     TRANSFORMER_MODEL_NAME: 128,
     MULTILINGUAL_TRANSFORMER_MODEL_NAME: 192,
 }
+COMBINATION_COMPONENT_LABELS = {
+    "svm": "SVM",
+    "logistic_regression": "LR",
+    "xlm_roberta": "XLM",
+}
 MODEL_OPTIONS = {
     TRANSFORMER_MODEL_NAME: PROJECT_ROOT / "Models" / "transformer_spam_classifier",
     MULTILINGUAL_TRANSFORMER_MODEL_NAME: PROJECT_ROOT / "Models" / "multilingual_transformer_spam_classifier",
+    COMBINATION_MODEL_NAME: PROJECT_ROOT / "Models" / "combination_model" / "config.json",
     "Support Vector Machine": PROJECT_ROOT / "Models" / "svm_spam_classifier.joblib",
     "Logistic Regression": PROJECT_ROOT / "Models" / "logistic_regression_spam_classifier.joblib",
 }
@@ -56,6 +68,7 @@ class SpamDetectorApp:
     def __init__(self, root, model_options=None):
         self.root = root
         self.model_options = model_options or MODEL_OPTIONS
+        self.combination_weights = self.load_combination_weights()
 
         self.root.title("Spam Detector")
         self.root.resizable(False, False)
@@ -70,6 +83,11 @@ class SpamDetectorApp:
         self.explanation_status_label = None
         self.confidence_canvas = None
         self.confidence_text_id = None
+        self.summary_title_label = None
+        self.single_summary_frame = None
+        self.combination_summary_frame = None
+        self.combination_canvases = {}
+        self.combination_weight_labels = {}
         self.metric_value_labels = {}
 
         self._build_layout()
@@ -140,23 +158,28 @@ class SpamDetectorApp:
     def _build_model_summary_section(self, parent):
         summary_frame = ttk.Frame(parent)
         summary_frame.pack(side="right", fill="y", padx=(12, 12), pady=(6, 12))
+        ttk.Frame(summary_frame, width=SUMMARY_MIN_WIDTH, height=1).pack()
 
-        ttk.Label(
+        self.summary_title_label = ttk.Label(
             summary_frame,
             text="Model Performance",
             font=("Segoe UI", 10),
-        ).pack(anchor="w", padx=12, pady=(2, 8))
+        )
+        self.summary_title_label.pack(anchor="w", padx=12, pady=(2, 8))
 
-        ttk.Label(summary_frame, text="Input Confidence").pack(anchor="center", padx=12, pady=(8, 2))
+        self.single_summary_frame = ttk.Frame(summary_frame)
+        self.single_summary_frame.pack(fill="x")
+
+        ttk.Label(self.single_summary_frame, text="Input Confidence").pack(anchor="center", padx=12, pady=(8, 2))
         self.confidence_canvas = tk.Canvas(
-            summary_frame,
+            self.single_summary_frame,
             width=CONFIDENCE_CANVAS_SIZE,
             height=CONFIDENCE_CANVAS_SIZE,
             highlightthickness=0,
         )
         self.confidence_canvas.pack(padx=12, pady=(0, 8))
 
-        metric_frame = ttk.Frame(summary_frame)
+        metric_frame = ttk.Frame(self.single_summary_frame)
         metric_frame.pack(fill="x", padx=12, pady=(0, 8))
 
         for row, (key, label) in enumerate(
@@ -171,8 +194,42 @@ class SpamDetectorApp:
             value_label.grid(row=row, column=1, sticky="e", padx=(18, 0), pady=2)
             self.metric_value_labels[key] = value_label
 
+        self.combination_summary_frame = ttk.Frame(summary_frame)
+        ttk.Label(
+            self.combination_summary_frame,
+            text="Component Scores",
+        ).pack(anchor="center", padx=12, pady=(8, 6))
+
+        for component_key, component_label in COMBINATION_COMPONENT_LABELS.items():
+            component_frame = ttk.Frame(self.combination_summary_frame)
+            component_frame.pack(anchor="center", padx=6, pady=(0, 10))
+
+            canvas = tk.Canvas(
+                component_frame,
+                width=COMBINATION_CANVAS_SIZE,
+                height=COMBINATION_CANVAS_SIZE,
+                highlightthickness=0,
+            )
+            canvas.pack(side="left", padx=(0, 12))
+
+            text_frame = ttk.Frame(component_frame)
+            text_frame.pack(side="left")
+            ttk.Label(text_frame, text=component_label, font=("Segoe UI", 10), width=8).pack(anchor="w")
+            weight_label = ttk.Label(
+                text_frame,
+                text=f"Weight: {self.combination_weights.get(component_key, 0.0):.2f}",
+                font=("Segoe UI", 8),
+                foreground="gray",
+                width=12,
+            )
+            weight_label.pack(anchor="w")
+
+            self.combination_canvases[component_key] = canvas
+            self.combination_weight_labels[component_key] = weight_label
+
         self.update_model_metrics()
         self.update_confidence_chart(0.0, None)
+        self.update_combination_confidence_charts()
 
     def _build_explanation_section(self):
         ttk.Label(self.root, text="Feature Explanation:").pack(anchor="w", padx=12, pady=6)
@@ -226,6 +283,27 @@ class SpamDetectorApp:
         height = self.root.winfo_reqheight()
         self.root.geometry(f"{width}x{height}")
 
+    def load_combination_weights(self):
+        default_weights = {
+            component_key: 0.0
+            for component_key in COMBINATION_COMPONENT_LABELS
+        }
+        config_path = self.model_options.get(COMBINATION_MODEL_NAME)
+        if config_path is None or not config_path.exists():
+            return default_weights
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as file:
+                config = json.load(file)
+        except (OSError, json.JSONDecodeError):
+            return default_weights
+
+        weights = config.get("weights", {})
+        return {
+            component_key: float(weights.get(component_key, 0.0))
+            for component_key in COMBINATION_COMPONENT_LABELS
+        }
+
     def detect_spam(self):
         message = self.text_input.get("1.0", tk.END).strip()
         if not message:
@@ -237,7 +315,7 @@ class SpamDetectorApp:
         self.result_label.config(text="Detecting...", foreground="gray")
         self.detail_label.config(text="")
         self.set_explanation_status("")
-        self.update_confidence_chart(0.0, None)
+        self.reset_summary_for_prediction(selected_model)
         self.clear_explanation_table()
 
         thread = threading.Thread(
@@ -252,6 +330,22 @@ class SpamDetectorApp:
             model_path = self.model_options[selected_model]
             if not model_path.exists():
                 raise FileNotFoundError(f"Model file not found: {model_path}")
+
+            if selected_model == COMBINATION_MODEL_NAME:
+                combination_prediction = predict_combination_spam(model_path, message)
+                self.root.after(
+                    0,
+                    self.show_result,
+                    combination_prediction.label,
+                    selected_model,
+                    [],
+                    combination_prediction.confidence,
+                    combination_prediction.probabilities,
+                    combination_prediction.component_predictions,
+                    combination_prediction.weights,
+                    combination_prediction.threshold,
+                )
+                return
 
             if selected_model in TRANSFORMER_MAX_LENGTHS:
                 transformer_prediction = predict_transformer_spam(
@@ -279,7 +373,17 @@ class SpamDetectorApp:
         except Exception as error:
             self.root.after(0, self.show_error, str(error))
 
-    def show_result(self, prediction, selected_model, explanations, confidence=None, probabilities=None):
+    def show_result(
+        self,
+        prediction,
+        selected_model,
+        explanations,
+        confidence=None,
+        probabilities=None,
+        component_predictions=None,
+        weights=None,
+        threshold=None,
+    ):
         prediction_label = str(prediction).lower()
         if prediction_label == "spam":
             self.result_label.config(text="SPAM", foreground="#c0392b")
@@ -290,14 +394,24 @@ class SpamDetectorApp:
         if confidence is not None:
             detail_text = f"{detail_text} | Confidence: {confidence:.2%}"
         self.detail_label.config(text=detail_text)
-        self.update_model_metrics(selected_model)
-        self.update_confidence_chart(confidence or 0.0, prediction_label)
-        if explanations:
+
+        if selected_model == COMBINATION_MODEL_NAME:
+            self.update_summary_display(selected_model)
+            self.update_combination_confidence_charts(component_predictions)
+            self.clear_explanation_table()
+            self.set_explanation_status(self.format_combination_status(probabilities, weights, threshold))
+        elif explanations:
+            self.update_summary_display(selected_model)
+            self.update_confidence_chart(confidence or 0.0, prediction_label)
             self.populate_explanation_table(explanations)
         elif probabilities:
+            self.update_summary_display(selected_model)
+            self.update_confidence_chart(confidence or 0.0, prediction_label)
             self.clear_explanation_table()
             self.set_explanation_status(self.format_probability_status(probabilities))
         else:
+            self.update_summary_display(selected_model)
+            self.update_confidence_chart(confidence or 0.0, prediction_label)
             self.populate_explanation_table(explanations)
         self.detect_btn.config(state="normal")
 
@@ -310,12 +424,44 @@ class SpamDetectorApp:
         self.detect_btn.config(state="normal")
 
     def on_model_changed(self, _event=None):
-        self.update_model_metrics()
-        self.update_confidence_chart(0.0, None)
+        self.update_summary_display()
         self.result_label.config(text="-", foreground="black")
         self.detail_label.config(text="")
         self.set_explanation_status("")
         self.clear_explanation_table()
+
+    def reset_summary_for_prediction(self, selected_model=None):
+        selected_model = selected_model or self.model_choice.get()
+        self.update_summary_display(selected_model)
+        if selected_model == COMBINATION_MODEL_NAME:
+            self.update_combination_confidence_charts()
+        else:
+            self.update_confidence_chart(0.0, None)
+
+    def update_summary_display(self, selected_model=None):
+        selected_model = selected_model or self.model_choice.get()
+        is_combination_model = selected_model == COMBINATION_MODEL_NAME
+
+        if self.summary_title_label is not None:
+            title = "Combination Model" if is_combination_model else "Model Performance"
+            self.summary_title_label.config(text=title)
+
+        if self.single_summary_frame is not None and self.combination_summary_frame is not None:
+            if is_combination_model:
+                if self.single_summary_frame.winfo_ismapped():
+                    self.single_summary_frame.pack_forget()
+                if not self.combination_summary_frame.winfo_ismapped():
+                    self.combination_summary_frame.pack(fill="x")
+            else:
+                if self.combination_summary_frame.winfo_ismapped():
+                    self.combination_summary_frame.pack_forget()
+                if not self.single_summary_frame.winfo_ismapped():
+                    self.single_summary_frame.pack(fill="x")
+
+        if is_combination_model:
+            self.update_combination_confidence_charts()
+        else:
+            self.update_model_metrics(selected_model)
 
     def update_model_metrics(self, selected_model=None):
         selected_model = selected_model or self.model_choice.get()
@@ -365,6 +511,55 @@ class SpamDetectorApp:
             fill=ring_color,
         )
 
+    def update_combination_confidence_charts(self, component_predictions=None):
+        for component_key, canvas in self.combination_canvases.items():
+            component_prediction = None
+            if component_predictions:
+                component_prediction = component_predictions.get(component_key)
+
+            confidence = 0.0
+            prediction_label = None
+            if component_prediction is not None:
+                confidence = component_prediction.confidence
+                prediction_label = component_prediction.label
+
+            confidence = max(0.0, min(float(confidence or 0.0), 1.0))
+            ring_color = "#7f8c8d"
+            if prediction_label == "spam":
+                ring_color = "#c0392b"
+            elif prediction_label == "ham":
+                ring_color = "#27ae60"
+
+            canvas.delete("all")
+            padding = COMBINATION_RING_WIDTH // 2 + 4
+            bounds = (
+                padding,
+                padding,
+                COMBINATION_CANVAS_SIZE - padding,
+                COMBINATION_CANVAS_SIZE - padding,
+            )
+            canvas.create_oval(
+                *bounds,
+                outline="#e5e5e5",
+                width=COMBINATION_RING_WIDTH,
+            )
+            if confidence > 0:
+                canvas.create_arc(
+                    *bounds,
+                    start=90,
+                    extent=-359.9 * confidence,
+                    style="arc",
+                    outline=ring_color,
+                    width=COMBINATION_RING_WIDTH,
+                )
+            canvas.create_text(
+                COMBINATION_CANVAS_SIZE // 2,
+                COMBINATION_CANVAS_SIZE // 2,
+                text=f"{confidence:.0%}",
+                font=("Segoe UI", 10, "bold"),
+                fill=ring_color,
+            )
+
     def get_classical_confidence(self, model, message):
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba([message])[0]
@@ -404,6 +599,21 @@ class SpamDetectorApp:
             f"{label.upper()}: {probability:.2%}"
             for label, probability in sorted(probabilities.items())
         )
+
+    def format_combination_status(self, probabilities, weights, threshold):
+        probability_text = self.format_probability_status(probabilities or {})
+        if not weights:
+            return probability_text
+
+        weight_text = (
+            f"Weights - SVM: {weights.get('svm', 0.0):.2f}, "
+            f"LR: {weights.get('logistic_regression', 0.0):.2f}, "
+            f"XLM: {weights.get('xlm_roberta', 0.0):.2f}"
+        )
+        threshold_text = ""
+        if threshold is not None:
+            threshold_text = f" | Threshold: {threshold:.3f}"
+        return f"{probability_text} | {weight_text}{threshold_text}"
 
     def clear_explanation_table(self):
         for item in self.explanation_table.get_children():

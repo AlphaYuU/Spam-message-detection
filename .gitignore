@@ -1,6 +1,7 @@
 # Project data and generated datasets
 Dataset source/
 document/
+meeting_transcripts/
 
 # Hugging Face and training outputs
 .cache/
