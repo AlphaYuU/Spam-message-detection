@@ -8,6 +8,7 @@ meeting_transcripts/
 .hf_models/
 .hf_runs/
 hf_sms_finetuning_checkpoints/
+local_artifacts/
 
 # UI transformer model artifacts copied from fine-tuning outputs
 Models/transformer_spam_classifier/

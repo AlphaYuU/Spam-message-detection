@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 DATASET_PATH = BASE_DIR / "Dataset source" / "training" / "Dataset_SMS_clean.csv"
 MODELS_DIR = BASE_DIR / "Models"
 CONFIG_DIR = MODELS_DIR / "combination_model"
