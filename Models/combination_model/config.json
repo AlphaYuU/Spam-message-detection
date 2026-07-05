@@ -6,7 +6,7 @@
     "logistic_regression": 0.15000000000000002,
     "xlm_roberta": 0.4999999999999999
   },
-  "threshold": 0.20000000000000007,
+  "threshold": 0.5,
   "objective": "validation_macro_f1_with_balanced_xlm_primary_constraint",
   "constraints": {
     "min_xlm_roberta_weight": 0.45,
