@@ -1,71 +1,27 @@
-# Project data and generated datasets
 Dataset source/
-meeting_transcripts/
-
-# Dissertation drafts, figures, and local review renders
 document/
 figure/
 figures.ipynb
-.review/
-.codex_review/
-.docx_review/
-doc_review_render/
-tmp/
+results/cross_validation/
 
-# Hugging Face and training outputs
-.cache/
-.hf_models/
-.hf_runs/
-hf_sms_finetuning_checkpoints/
 local_artifacts/
 
-# UI transformer model artifacts copied from fine-tuning outputs
-Models/transformer_spam_classifier/
 Models/multilingual_transformer_spam_classifier/
-Models/*.backup_*.joblib
-Models/**/checkpoint-*/
-Models/**/*.safetensors
-Models/**/*.bin
-Models/**/*.onnx
+Models/transformer_spam_classifier/
 
-# Jupyter and IPython runtime files
-.jupyter_runtime/
 .ipynb_checkpoints/
-.ipython/
 *.nbconvert.ipynb
 
-# Python caches and virtual environments
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
 .venv/
-venv/
 env/
+venv/
 
-# Editor, OS, and local-only files
 .vscode/
 .idea/
-*.swp
-*.swo
 .DS_Store
 Thumbs.db
-
-# Local configuration and private agent files
-AGENTS.md
-AI_AGENT_PROMPTS.md
-.env
-.env.*
-!.env.example
-
-# Lemon Rule private workspace
-.ai/
-.ai/private/*
-!.ai/private/
-!.ai/private/.gitkeep
-.ai/backups/
+*.swp
+*.swo
