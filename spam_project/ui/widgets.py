@@ -235,7 +235,8 @@ class ExplanationTable(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
 
-        ttk.Label(self, text="Feature Explanation:").pack(anchor="w", pady=6)
+        self.title_label = ttk.Label(self, text="Feature Explanation:")
+        self.title_label.pack(anchor="w", pady=6)
         explanation_frame = ttk.Frame(self)
         explanation_frame.pack(fill="x", pady=(0, 12))
 
@@ -290,6 +291,9 @@ class ExplanationTable(ttk.Frame):
 
     def set_status(self, text):
         self.status_label.config(text=text or " ")
+
+    def set_title(self, text):
+        self.title_label.config(text=text or "Feature Explanation:")
 
     def populate(self, explanations):
         self.clear()

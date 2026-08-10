@@ -8,10 +8,12 @@ from spam_project.model_catalog import (
     COMBINATION_COMPONENT_LABELS,
     COMBINATION_MODEL_NAME,
     DEFAULT_MODEL_DISPLAY_NAME,
+    MULTILINGUAL_TRANSFORMER_MODEL_NAME,
 )
 from spam_project.models.registry import ModelRegistry
 from spam_project.ui.formatters import format_combination_status, format_probability_status
 from spam_project.ui.settings import SUMMARY_MIN_WIDTH
+from spam_project.ui.text_direction import contains_arabic, format_arabic_for_display
 from spam_project.ui.widgets import (
     CombinationSummaryPanel,
     ExplanationTable,
@@ -110,6 +112,12 @@ class SpamDetectorApp:
         self.combination_weight_labels = {}
         self.metric_value_labels = {}
 
+        # Tk 8.6 does not reliably lay out mixed Arabic and left-to-right text.
+        # Keep the original logical text for prediction and use a separate
+        # presentation-oriented value only while the RTL preview is visible.
+        self._logical_input_text = None
+        self._showing_rtl_preview = False
+
         self._build_layout()
         self._lock_initial_window_size()
 
@@ -143,6 +151,10 @@ class SpamDetectorApp:
             font=("Segoe UI", 10),
         )
         self.text_input.pack(fill="x", padx=12)
+        self.text_input.tag_configure("rtl", justify="right")
+        self.text_input.bind("<<Paste>>", self._on_text_paste, add="+")
+        self.text_input.bind("<KeyPress>", self._on_text_key_press, add="+")
+        self.text_input.bind("<FocusOut>", self._on_text_focus_out, add="+")
 
         self.detect_btn = ttk.Button(input_frame, text="Detect", command=self.detect_spam)
         self.detect_btn.pack(pady=10)
@@ -158,6 +170,7 @@ class SpamDetectorApp:
         self.explanation_widget.pack(fill="x", padx=12, pady=(0, 0))
         self.explanation_table = self.explanation_widget.table
         self.explanation_status_label = self.explanation_widget.status_label
+        self._update_explanation_title()
 
     def _build_model_summary_section(self, parent):
         summary_frame = ttk.Frame(parent)
@@ -192,12 +205,13 @@ class SpamDetectorApp:
         self.root.geometry(f"{width}x{height}")
 
     def detect_spam(self):
-        message = self.text_input.get("1.0", tk.END).strip()
+        selected_model = self.model_choice.get()
+        message = self._get_logical_input_text().strip()
         if not message:
             messagebox.showwarning("Empty Input", "Please enter a message to detect.")
             return
 
-        selected_model = self.model_choice.get()
+        self._format_multilingual_input_for_display(message)
         self.set_busy(True)
         self.result_panel.set_loading()
         self.explanation_widget.reset()
@@ -218,10 +232,18 @@ class SpamDetectorApp:
             self.update_summary_display(COMBINATION_MODEL_NAME)
             self.combination_summary_panel.set_weights(result.metadata.get("weights", {}))
             self.combination_summary_panel.set_prediction(result.components)
-            self.explanation_widget.clear()
-            self.explanation_widget.set_status(format_combination_status(result))
+            self._update_explanation_title(COMBINATION_MODEL_NAME)
+            if result.explanations:
+                self.explanation_widget.populate(result.explanations)
+                self.explanation_widget.set_status(
+                    f"SVM component explanation | {format_combination_status(result)}"
+                )
+            else:
+                self.explanation_widget.clear()
+                self.explanation_widget.set_status(format_combination_status(result))
         else:
             self.update_summary_display(display_name)
+            self._update_explanation_title(display_name)
             self.single_summary_panel.set_prediction(
                 result,
                 metrics=self.model_registry.get_metrics(display_name),
@@ -244,9 +266,11 @@ class SpamDetectorApp:
 
     def on_model_changed(self, _event=None):
         self.controller.invalidate_pending()
+        self._restore_logical_input_for_editing()
         self.update_summary_display()
         self.result_panel.clear()
         self.explanation_widget.reset()
+        self._update_explanation_title()
 
     def reset_summary_for_prediction(self, selected_model=None):
         selected_model = selected_model or self.model_choice.get()
@@ -305,6 +329,76 @@ class SpamDetectorApp:
 
     def populate_explanation_table(self, explanations):
         self.explanation_widget.populate(explanations)
+
+    def _update_explanation_title(self, selected_model=None):
+        selected_model = selected_model or self.model_choice.get()
+        spec = self.model_registry.get_spec(selected_model)
+        title = (
+            "Feature Explanation (SVM component):"
+            if spec.kind == "combination"
+            else "Feature Explanation:"
+        )
+        self.explanation_widget.set_title(title)
+
+    def _is_multilingual_model_selected(self):
+        return self.model_choice.get() == MULTILINGUAL_TRANSFORMER_MODEL_NAME
+
+    def _get_widget_input_text(self):
+        return self.text_input.get("1.0", "end-1c")
+
+    def _get_logical_input_text(self):
+        if self._showing_rtl_preview and self._logical_input_text is not None:
+            return self._logical_input_text
+        return self._get_widget_input_text()
+
+    def _format_multilingual_input_for_display(self, logical_text=None):
+        if self._showing_rtl_preview or not self._is_multilingual_model_selected():
+            return
+
+        logical_text = (
+            self._get_widget_input_text()
+            if logical_text is None
+            else logical_text
+        )
+        if not contains_arabic(logical_text):
+            return
+
+        try:
+            display_text = format_arabic_for_display(logical_text)
+        except RuntimeError as error:
+            messagebox.showerror("Arabic Display Support", str(error))
+            return
+
+        self._logical_input_text = logical_text
+        self.text_input.delete("1.0", tk.END)
+        self.text_input.insert("1.0", display_text, "rtl")
+        self._showing_rtl_preview = True
+
+    def _restore_logical_input_for_editing(self):
+        if not self._showing_rtl_preview:
+            return
+
+        logical_text = self._logical_input_text or ""
+        self.text_input.delete("1.0", tk.END)
+        self.text_input.insert("1.0", logical_text)
+        self.text_input.tag_remove("rtl", "1.0", tk.END)
+        self.text_input.mark_set(tk.INSERT, "end-1c")
+        self._showing_rtl_preview = False
+
+    def _on_text_paste(self, _event=None):
+        # Restore the logical string before Tk inserts clipboard data. Formatting
+        # runs after the built-in paste binding has completed.
+        self._restore_logical_input_for_editing()
+        if self._is_multilingual_model_selected():
+            self.root.after_idle(self._format_multilingual_input_for_display)
+
+    def _on_text_key_press(self, _event=None):
+        # Editing presentation-oriented text could corrupt its logical order.
+        self._restore_logical_input_for_editing()
+
+    def _on_text_focus_out(self, _event=None):
+        if self._is_multilingual_model_selected():
+            self.root.after_idle(self._format_multilingual_input_for_display)
 
 
 def create_app():

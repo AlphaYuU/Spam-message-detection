@@ -5,6 +5,7 @@ from functools import lru_cache
 import json
 from pathlib import Path
 
+from spam_project.explainers.tfidf_linear import explain_linear_tfidf_model
 from spam_project.model_catalog import COMBINATION_COMPONENT_LABELS, REQUIRED_COMBINATION_COMPONENTS
 from spam_project.models.classical import (
     component_from_probabilities,
@@ -86,17 +87,27 @@ def predict_combination_result(config_path, message: str) -> PredictionResult:
     label = "spam" if spam_probability >= threshold else "ham"
     confidence = spam_probability if label == "spam" else 1.0 - spam_probability
 
+    metadata = {
+        "display_name": config.get("name", "Combination Model"),
+        "config_path": str(config_path),
+        "weights": weights,
+        "threshold": threshold,
+        "explanation_model": "svm",
+        "explanation_method": "tfidf_linear",
+    }
+    explanations = []
+    try:
+        explanations = _explain_with_svm_component(config_path, config, message)
+    except (TypeError, ValueError) as error:
+        metadata["explanation_error"] = str(error)
+
     return PredictionResult(
         label=label,
         confidence=confidence,
         probabilities=probabilities,
+        explanations=explanations,
         components=component_scores,
-        metadata={
-            "display_name": config.get("name", "Combination Model"),
-            "config_path": str(config_path),
-            "weights": weights,
-            "threshold": threshold,
-        },
+        metadata=metadata,
     )
 
 
@@ -164,6 +175,13 @@ def _predict_components(
         )
         for key, component in components.items()
     }
+
+
+def _explain_with_svm_component(config_path: Path, config: dict, message: str):
+    """Explain a combined prediction using its fitted SVM component."""
+    svm_model_path = _resolve_model_path(config_path, config["models"]["svm"])
+    svm_model = load_joblib_model(str(svm_model_path))
+    return explain_linear_tfidf_model(svm_model, message)
 
 
 def _resolve_model_path(config_path: Path, model_path_text: str) -> Path:

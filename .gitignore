@@ -1,7 +1,16 @@
 # Project data and generated datasets
 Dataset source/
-document/
 meeting_transcripts/
+
+# Dissertation drafts, figures, and local review renders
+document/
+figure/
+figures.ipynb
+.review/
+.codex_review/
+.docx_review/
+doc_review_render/
+tmp/
 
 # Hugging Face and training outputs
 .cache/
