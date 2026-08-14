@@ -1,8 +1,7 @@
 Dataset source/
-document/
 figure/
 figures.ipynb
-results/cross_validation/
+results
 
 local_artifacts/
 
