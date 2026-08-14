@@ -2,11 +2,17 @@ Dataset source/
 figure/
 figures.ipynb
 results
+scripts/*
+!scripts/optimize_combination_model.py
+
 
 local_artifacts/
 
-Models/multilingual_transformer_spam_classifier/
-Models/transformer_spam_classifier/
+Models/*transformer_spam_classifier/*
+!Models/*transformer_spam_classifier/config.json
+!Models/*transformer_spam_classifier/*token*.json
+
+
 
 .ipynb_checkpoints/
 *.nbconvert.ipynb
