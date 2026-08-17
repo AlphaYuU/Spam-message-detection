@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import sys
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[1]
+)
 MODELS_DIR = PROJECT_ROOT / "Models"
 COMBINATION_CONFIG_PATH = MODELS_DIR / "combination_model" / "config.json"
 

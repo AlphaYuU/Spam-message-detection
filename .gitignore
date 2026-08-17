@@ -5,6 +5,10 @@ results
 scripts/*
 !scripts/optimize_combination_model.py
 
+build/
+dist/
+.venv-build-cpu/
+
 
 local_artifacts/
 
