@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+arabic-reshaper==3.0.1
+joblib==1.5.3
+python-bidi==0.6.11
+scikit-learn==1.7.2
+torch==2.9.1+cu128
+transformers==4.39.3
